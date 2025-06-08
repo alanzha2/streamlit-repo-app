@@ -119,8 +119,6 @@ st.header("Top Repositories")
 
 repo_cols = st.columns(2)
 
-st.header("Top Repositories")
-
 # Top by Stars
 st.subheader("By Stars")
 df = data["stars"]
