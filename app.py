@@ -67,17 +67,30 @@ def plot_weekly_cumulative(df, date_col, label, color, ax):
         ax.set_axis_off()
         ax.set_title(f"No data for {label}")
         return
+
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+    
+    # Calculate weekly and cumulative counts
     weekly_counts = df[date_col].dt.to_period("W").value_counts().sort_index()
     weekly_counts = weekly_counts.sort_index()
     cumulative = weekly_counts.cumsum()
-    ax.plot(cumulative.index.to_timestamp(), cumulative.values, label=label, color=color, alpha=0.85, linewidth=2)
-    ax.set_title(f"Weekly Cumulative {label}", fontsize=14)
+
+    # Plot cumulative line
+    ax.plot(cumulative.index.to_timestamp(), cumulative.values, label=f"Cumulative {label}", color=color, alpha=0.85, linewidth=2)
+
+    # Create secondary y-axis for weekly bars (optional)
+    ax2 = ax.twinx()
+    ax2.bar(weekly_counts.index.to_timestamp(), weekly_counts.values, width=6, color=color, alpha=0.3, label=f"Weekly {label}")
+
+    # Labeling and styling
+    ax.set_title(f"Weekly & Cumulative {label}", fontsize=14)
     ax.set_xlabel("Week")
-    ax.set_ylabel(f"Cumulative {label}")
+    ax.set_ylabel(f"Cumulative {label}", color=color)
+    ax2.set_ylabel(f"Weekly {label}", color=color)
     ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend(fontsize=10)
+    ax.legend(loc="center left", fontsize=9)
+    ax2.legend(loc="center right", fontsize=9)
     ax.tick_params(labelrotation=30, labelsize=9)
     sns.despine(ax=ax)
 
