@@ -49,7 +49,7 @@ def load_all_tables():
             data[name] = pd.DataFrame()
     return data
 
-st.title("Repo Insights")
+st.title("Agntcy Repo Insights")
 data = load_all_tables()
 
 # --- SUMMARY CARDS ---
