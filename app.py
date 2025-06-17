@@ -20,7 +20,9 @@ TABLES = {
     "stars": "stars.csv",
     "forks": "forks.csv",
     "issues": "issues.csv",
-    "pr": "pr.csv"
+    "pr": "pr.csv",
+    "downloads" : "downloads.csv"
+
 }
 
 def get_s3_client():
@@ -53,12 +55,13 @@ st.title("Agntcy Repo Insights")
 data = load_all_tables()
 
 # --- SUMMARY CARDS ---
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1.3, 1, 1, 1.5])
 col1.metric("⭐ Total Stars", len(data["stars"]))
 col2.metric("🍴 Total Forks", len(data["forks"]))
 col3.metric("⬆️ Total Commits", len(data["commits"]))
 col4.metric("🐞 Total Issues", len(data["issues"]))
 col5.metric("🔀 Total PRs", len(data["pr"]))
+col6.metric("📥 Total Pkg Downloads", data["downloads"]["total_downloads"].sum())
 
 # --- WEEKLY CUMULATIVE GROWTH CHARTS (VERTICALLY STACKED) ---
 
@@ -161,3 +164,30 @@ if not df.empty and "repo_name" in df.columns:
     st.pyplot(fig, use_container_width=True)
 else:
     st.info("No commits data.")
+
+# --- DOWNLOADS BY PACKAGE ---
+# --- DOWNLOADS BY PACKAGE ---
+st.header("📦 Downloads by Package")
+
+df = data["downloads"]
+if not df.empty and "name" in df.columns and "total_downloads" in df.columns:
+    df_sorted = df.sort_values("total_downloads", ascending=False)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(
+        data=df_sorted,
+        y="name", x="total_downloads",
+        palette="Blues_d", ax=ax
+    )
+    ax.set_xlabel("Total Downloads")
+    ax.set_ylabel("Package Name")
+    ax.set_title("Total Downloads by Package", fontsize=14)
+    ax.grid(True, axis="x", linestyle="--", alpha=0.4)
+
+    # Add download count labels to the ends of the bars
+    for i, v in enumerate(df_sorted["total_downloads"]):
+        ax.text(v + 5, i, f"{v:,}", color="black", va="center", fontsize=9)
+
+    st.pyplot(fig, use_container_width=True)
+else:
+    st.info("No downloads data available.")
