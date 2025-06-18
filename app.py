@@ -139,12 +139,12 @@ repo_cols = st.columns(2)
 st.subheader("By Stars")
 df = data["stars"]
 if not df.empty and "repo_name" in df.columns:
-    repo_counts = df["repo_name"].value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(7,4))
+    repo_counts = df["repo_name"].value_counts()
+    fig, ax = plt.subplots(figsize=(7,5))
     sns.barplot(y=repo_counts.index, x=repo_counts.values, color="gold", ax=ax)
     ax.set_xlabel("# of Stars")
     ax.set_ylabel("Repository")
-    ax.set_title("Top 10 by Stars", fontsize=12)
+    ax.set_title("Top Repos by Stars", fontsize=12)
     ax.grid(True, axis="x", linestyle="--", alpha=0.4)
     st.pyplot(fig, use_container_width=True)
 else:
@@ -154,12 +154,12 @@ else:
 st.subheader("By Commits")
 df = data["commits"]
 if not df.empty and "repo_name" in df.columns:
-    repo_counts = df["repo_name"].value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(7,4))
+    repo_counts = df["repo_name"].value_counts()
+    fig, ax = plt.subplots(figsize=(7,5))
     sns.barplot(y=repo_counts.index, x=repo_counts.values, color="deepskyblue", ax=ax)
     ax.set_xlabel("# of Commits")
     ax.set_ylabel("Repository")
-    ax.set_title("Top 10 by Commits", fontsize=12)
+    ax.set_title("Top Repos by Commits", fontsize=12)
     ax.grid(True, axis="x", linestyle="--", alpha=0.4)
     st.pyplot(fig, use_container_width=True)
 else:
