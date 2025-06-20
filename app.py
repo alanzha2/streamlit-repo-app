@@ -54,6 +54,15 @@ def load_all_tables():
 st.title("Agntcy Repo Insights")
 data = load_all_tables()
 
+downloads_df = data["downloads"]
+
+# Ensure process_time is datetime
+downloads_df["process_time"] = pd.to_datetime(downloads_df["process_time"])
+
+# Get latest snapshot
+latest_ts = downloads_df["process_time"].max()
+latest_downloads = downloads_df[downloads_df["process_time"] == latest_ts]
+
 # --- SUMMARY CARDS ---
 col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1.3, 1, 1, 1.5])
 col1.metric("⭐ Total Stars", len(data["stars"]))
@@ -61,7 +70,7 @@ col2.metric("🍴 Total Forks", len(data["forks"]))
 col3.metric("⬆️ Total Commits", len(data["commits"]))
 col4.metric("🐞 Total Issues", len(data["issues"]))
 col5.metric("🔀 Total PRs", len(data["pr"]))
-col6.metric("📥 Total Pkg Downloads", data["downloads"]["total_downloads"].sum())
+col6.metric("📥 Total Pkg Downloads", latest_downloads["total_downloads"].sum())
 
 # --- WEEKLY CUMULATIVE GROWTH CHARTS (VERTICALLY STACKED) ---
 
@@ -169,7 +178,7 @@ else:
 # --- DOWNLOADS BY PACKAGE ---
 st.header("📦 Downloads by Package")
 
-df = data["downloads"]
+df = latest_downloads.copy()
 if not df.empty and "name" in df.columns and "total_downloads" in df.columns:
     df_sorted = df.sort_values("total_downloads", ascending=False)
     
