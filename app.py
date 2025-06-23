@@ -72,72 +72,132 @@ col4.metric("🐞 Total Issues", len(data["issues"]))
 col5.metric("🔀 Total PRs", len(data["pr"]))
 col6.metric("📥 Total Pkg Downloads", latest_downloads["total_downloads"].sum())
 
-# --- WEEKLY CUMULATIVE GROWTH CHARTS (VERTICALLY STACKED) ---
+def plot_cumulative_by_period(df, date_col, label, color, ax, freq="W", show_bar=True):
+    """
+    Plot cumulative and period counts on dual y-axis with configurable frequency.
 
-def plot_weekly_cumulative(df, date_col, label, color, ax):
+    freq: "D" (Daily), "W" (Weekly), "M" (Monthly), "Q" (Quarterly), "Y" (Yearly)
+    show_bar: if True, show period-level bars on secondary y-axis
+    """
     if df.empty or date_col not in df.columns:
         ax.set_axis_off()
         ax.set_title(f"No data for {label}")
         return
 
+    # Friendly frequency label
+    freq_labels = {
+        "D": "Daily",
+        "W": "Weekly",
+        "M": "Monthly",
+        "Q": "Quarterly",
+        "Y": "Yearly"
+    }
+    freq_name = freq_labels.get(freq.upper(), freq.upper())
+
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-    
-    # Calculate weekly and cumulative counts
-    weekly_counts = df[date_col].dt.to_period("W").value_counts().sort_index()
-    weekly_counts = weekly_counts.sort_index()
-    cumulative = weekly_counts.cumsum()
+    period_series = df[date_col].dt.to_period(freq)
+    period_counts = period_series.value_counts().sort_index()
+    cumulative = period_counts.cumsum()
+    period_timestamps = cumulative.index.to_timestamp()
 
     # Plot cumulative line
-    ax.plot(cumulative.index.to_timestamp(), cumulative.values, label=f"Cumulative {label}", color=color, alpha=0.85, linewidth=2)
+    ax.plot(period_timestamps, cumulative.values, label=f"Cumulative {label}",
+            color=color, alpha=0.85, linewidth=2)
 
-    # Create secondary y-axis for weekly bars (optional)
-    ax2 = ax.twinx()
-    ax2.bar(weekly_counts.index.to_timestamp(), weekly_counts.values, width=6, color=color, alpha=0.3, label=f"Weekly {label}")
+    if show_bar:
+        # Plot period counts on secondary axis
+        ax2 = ax.twinx()
+        bar_width = {"D": 0.7, "W": 6, "M": 20, "Q": 60, "Y": 90}.get(freq.upper(), 6)
+        ax2.bar(period_timestamps, period_counts.values,
+                width=bar_width, color=color, alpha=0.3, label=f"{freq_name} {label}")
+        ax2.set_ylabel(f"{freq_name} {label}", color=color)
+        ax2.legend(loc="center right", fontsize=9)
+    else:
+        ax2 = None
 
-    # Labeling and styling
-    ax.set_title(f"Weekly & Cumulative {label}", fontsize=14)
-    ax.set_xlabel("Week")
+    # Styling
+    ax.set_title(f"{freq_name} & Cumulative {label}", fontsize=14)
+    ax.set_xlabel("Date")
     ax.set_ylabel(f"Cumulative {label}", color=color)
-    ax2.set_ylabel(f"Weekly {label}", color=color)
     ax.grid(True, linestyle="--", alpha=0.3)
     ax.legend(loc="center left", fontsize=9)
-    ax2.legend(loc="center right", fontsize=9)
     ax.tick_params(labelrotation=30, labelsize=9)
     sns.despine(ax=ax)
+
 
 st.header("Weekly Cumulative Growth")
 
 # Stars
 st.subheader("Stars")
 fig, ax = plt.subplots(figsize=(10, 3))
-plot_weekly_cumulative(data["stars"], "starred_at", "Stars", "gold", ax)
+plot_cumulative_by_period(data["stars"], date_col="starred_at", label="Stars", color="gold", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
 # Forks
 st.subheader("Forks")
 fig, ax = plt.subplots(figsize=(10, 3))
-plot_weekly_cumulative(data["forks"], "created_at", "Forks", "mediumorchid", ax)
+plot_cumulative_by_period(data["forks"], date_col="created_at", label="Forks", color="mediumorchid", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
 # Commits
 st.subheader("Commits")
 fig, ax = plt.subplots(figsize=(10, 3))
-plot_weekly_cumulative(data["commits"], "date", "Commits", "deepskyblue", ax)
+plot_cumulative_by_period(data["commits"], date_col="date", label="Commits", color="deepskyblue", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
 # Issues
 st.subheader("Issues")
 fig, ax = plt.subplots(figsize=(10, 3))
-plot_weekly_cumulative(data["issues"], "created_at", "Issues", "limegreen", ax)
+plot_cumulative_by_period(data["issues"], date_col="created_at", label="Issues", color="limegreen", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
 # PRs
 st.subheader("PRs")
 fig, ax = plt.subplots(figsize=(10, 3))
-plot_weekly_cumulative(data["pr"], "created_at", "PRs", "tomato", ax)
+plot_cumulative_by_period(data["pr"], date_col="created_at", label="PRs", color="tomato", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
+# --- DOWNLOAD TRENDS OVER TIME ---
+st.subheader("📈 Download Trends (Snapshot Per Day)")
+df = data["downloads"]
+
+if not df.empty and "process_time" in df.columns and "total_downloads" in df.columns:
+    df["process_time"] = pd.to_datetime(df["process_time"])
+    df["date"] = df["process_time"].dt.date
+
+    # Get the latest process_time per day
+    latest_per_day = (
+        df.sort_values("process_time")
+          .groupby(["date", "name"], as_index=False)
+          .last()  # latest snapshot for each package on each day
+    )
+
+    # Sum downloads across all packages for each day
+    daily_totals = (
+        latest_per_day.groupby("date")["total_downloads"]
+        .sum()
+        .reset_index()
+        .sort_values("date")
+    )
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(10, 4))
+    sns.barplot(data=daily_totals, x="date", y="total_downloads", color="#627D98", ax=ax)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Total Pkg Downloads")
+    ax.set_title("Total Pkg Downloads (Snapshot Per Day)", fontsize=14)
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+
+    # Add value labels
+    for i, row in daily_totals.iterrows():
+        ax.text(i, row["total_downloads"] + 5, f"{int(row['total_downloads']):,}", 
+                ha="center", va="bottom", fontsize=8)
+
+    st.pyplot(fig, use_container_width=True)
+
+else:
+    st.info("No downloads trend data available.")
 # --- TOP REPOSITORIES ---
 
 st.header("Top Repositories")
@@ -174,7 +234,6 @@ if not df.empty and "repo_name" in df.columns:
 else:
     st.info("No commits data.")
 
-# --- DOWNLOADS BY PACKAGE ---
 # --- DOWNLOADS BY PACKAGE ---
 st.header("📦 Downloads by Package")
 
