@@ -21,7 +21,8 @@ TABLES = {
     "forks": "forks.csv",
     "issues": "issues.csv",
     "pr": "pr.csv",
-    "downloads" : "downloads.csv"
+    "downloads" : "downloads.csv",
+    "discussions" : "discussions.csv"
 
 }
 
@@ -45,10 +46,10 @@ def load_all_tables():
     for name, fname in TABLES.items():
         try:
             df = read_csv_from_s3(fname)
-            data[name] = df
         except Exception as e:
             st.warning(f"Could not load {fname}: {e}")
-            data[name] = pd.DataFrame()
+            df = pd.DataFrame()
+        data[name] = df  # always assign
     return data
 
 st.title("Agntcy Repo Insights")
@@ -64,13 +65,20 @@ latest_ts = downloads_df["process_time"].max()
 latest_downloads = downloads_df[downloads_df["process_time"] == latest_ts]
 
 # --- SUMMARY CARDS ---
-col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1.3, 1, 1, 1.5])
-col1.metric("⭐ Total Stars", len(data["stars"]))
-col2.metric("🍴 Total Forks", len(data["forks"]))
-col3.metric("⬆️ Total Commits", len(data["commits"]))
-col4.metric("🐞 Total Issues", len(data["issues"]))
-col5.metric("🔀 Total PRs", len(data["pr"]))
-col6.metric("📥 Total Pkg Downloads", latest_downloads["total_downloads"].sum())
+
+# First row: 4 cards
+top1, top2, top3, top4 = st.columns(4)
+top1.metric("⭐\nStars", len(data["stars"]))
+top2.metric("🍴\nForks", len(data["forks"]))
+top3.metric("⬆️\nCommits", len(data["commits"]))
+top4.metric("🐞\nIssues", len(data["issues"]))
+
+# Second row: 4 cards
+bot1, bot2, bot3, bot4 = st.columns(4)
+bot1.metric("🔀\nPRs", len(data["pr"]))
+bot2.metric("📥\nPkg Downloads", f"{int(latest_downloads['total_downloads'].sum()):,}")
+bot3.metric("💬\nDiscussions", len(data["discussions"]))
+bot4.metric("🔼\nUpvotes", f"{int(data['discussions']['upvote_count'].sum()):,}")
 
 def plot_cumulative_by_period(df, date_col, label, color, ax, freq="W", show_bar=True):
     """
@@ -198,6 +206,7 @@ if not df.empty and "process_time" in df.columns and "total_downloads" in df.col
 
 else:
     st.info("No downloads trend data available.")
+
 # --- TOP REPOSITORIES ---
 
 st.header("Top Repositories")
