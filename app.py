@@ -68,7 +68,7 @@ latest_downloads = downloads_df[downloads_df["process_time"] == latest_ts]
 
 # First row: 4 cards
 top1, top2, top3, top4 = st.columns(4)
-top1.metric("⭐\nStars", len(data["stars"]))
+top1.metric("📥\nPkg Downloads", f"{int(latest_downloads['total_downloads'].sum()):,}")
 top2.metric("🍴\nForks", len(data["forks"]))
 top3.metric("⬆️\nCommits", len(data["commits"]))
 top4.metric("🐞\nIssues", len(data["issues"]))
@@ -76,7 +76,7 @@ top4.metric("🐞\nIssues", len(data["issues"]))
 # Second row: 4 cards
 bot1, bot2, bot3, bot4 = st.columns(4)
 bot1.metric("🔀\nPRs", len(data["pr"]))
-bot2.metric("📥\nPkg Downloads", f"{int(latest_downloads['total_downloads'].sum()):,}")
+bot2.metric("⭐\nStars", len(data["stars"]))
 bot3.metric("💬\nDiscussions", len(data["discussions"]))
 bot4.metric("🔼\nUpvotes", f"{int(data['discussions']['upvote_count'].sum()):,}")
 
@@ -136,6 +136,54 @@ def plot_cumulative_by_period(df, date_col, label, color, ax, freq="W", show_bar
 
 st.header("Weekly Cumulative Growth")
 
+
+# --- DOWNLOAD TRENDS OVER TIME ---
+st.subheader("📈 Download Trends (Snapshot Per Day)")
+df = data["downloads"]
+
+if not df.empty and "process_time" in df.columns and "total_downloads" in df.columns:
+    df["process_time"] = pd.to_datetime(df["process_time"])
+    df["date"] = df["process_time"].dt.date
+
+    # Get the latest process_time per day
+    latest_per_day = (
+        df.sort_values("process_time")
+          .groupby(["date", "name"], as_index=False)
+          .last()
+    )
+
+    # Sum downloads across all packages for each day
+    daily_totals = (
+        latest_per_day.groupby("date")["total_downloads"]
+        .sum()
+        .reset_index()
+        .sort_values("date")
+    )
+
+    # Plot: Line Chart
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(daily_totals["date"], daily_totals["total_downloads"], marker="o", linestyle="-", linewidth=2)
+
+    # Format plot
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Total Pkg Downloads")
+    ax.set_title("Total Pkg Downloads (Snapshot Per Day)", fontsize=14)
+    ax.grid(True, linestyle="--", alpha=0.4)
+
+    # Annotate values
+    for i, row in daily_totals.iterrows():
+        ax.annotate(f"{int(row['total_downloads']):,}",
+                    xy=(row["date"], row["total_downloads"]),
+                    xytext=(0, 5),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=8)
+
+    st.pyplot(fig, use_container_width=True)
+
+else:
+    st.info("No downloads trend data available.")
+
 # Stars
 st.subheader("Stars")
 fig, ax = plt.subplots(figsize=(10, 3))
@@ -166,47 +214,33 @@ fig, ax = plt.subplots(figsize=(10, 3))
 plot_cumulative_by_period(data["pr"], date_col="created_at", label="PRs", color="tomato", ax=ax, freq="W")
 st.pyplot(fig, use_container_width=True)
 
-# --- DOWNLOAD TRENDS OVER TIME ---
-st.subheader("📈 Download Trends (Snapshot Per Day)")
-df = data["downloads"]
 
-if not df.empty and "process_time" in df.columns and "total_downloads" in df.columns:
-    df["process_time"] = pd.to_datetime(df["process_time"])
-    df["date"] = df["process_time"].dt.date
 
-    # Get the latest process_time per day
-    latest_per_day = (
-        df.sort_values("process_time")
-          .groupby(["date", "name"], as_index=False)
-          .last()  # latest snapshot for each package on each day
+# --- DOWNLOADS BY PACKAGE ---
+st.header("📦 Downloads by Package")
+
+df = latest_downloads.copy()
+if not df.empty and "name" in df.columns and "total_downloads" in df.columns:
+    df_sorted = df.sort_values("total_downloads", ascending=False)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(
+        data=df_sorted,
+        y="name", x="total_downloads",
+        palette="Blues_d", ax=ax
     )
+    ax.set_xlabel("Total Downloads")
+    ax.set_ylabel("Package Name")
+    ax.set_title("Total Downloads by Package", fontsize=14)
+    ax.grid(True, axis="x", linestyle="--", alpha=0.4)
 
-    # Sum downloads across all packages for each day
-    daily_totals = (
-        latest_per_day.groupby("date")["total_downloads"]
-        .sum()
-        .reset_index()
-        .sort_values("date")
-    )
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(10, 4))
-    sns.barplot(data=daily_totals, x="date", y="total_downloads", color="#627D98", ax=ax)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Cumulative Total Pkg Downloads")
-    ax.set_title("Total Pkg Downloads (Snapshot Per Day)", fontsize=14)
-    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
-
-    # Add value labels
-    for i, row in daily_totals.iterrows():
-        ax.text(i, row["total_downloads"] + 5, f"{int(row['total_downloads']):,}", 
-                ha="center", va="bottom", fontsize=8)
+    # Add download count labels to the ends of the bars
+    for i, v in enumerate(df_sorted["total_downloads"]):
+        ax.text(v + 5, i, f"{v:,}", color="black", va="center", fontsize=9)
 
     st.pyplot(fig, use_container_width=True)
-
 else:
-    st.info("No downloads trend data available.")
-
+    st.info("No downloads data available.")
 # --- TOP REPOSITORIES ---
 
 st.header("Top Repositories")
@@ -243,28 +277,4 @@ if not df.empty and "repo_name" in df.columns:
 else:
     st.info("No commits data.")
 
-# --- DOWNLOADS BY PACKAGE ---
-st.header("📦 Downloads by Package")
 
-df = latest_downloads.copy()
-if not df.empty and "name" in df.columns and "total_downloads" in df.columns:
-    df_sorted = df.sort_values("total_downloads", ascending=False)
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(
-        data=df_sorted,
-        y="name", x="total_downloads",
-        palette="Blues_d", ax=ax
-    )
-    ax.set_xlabel("Total Downloads")
-    ax.set_ylabel("Package Name")
-    ax.set_title("Total Downloads by Package", fontsize=14)
-    ax.grid(True, axis="x", linestyle="--", alpha=0.4)
-
-    # Add download count labels to the ends of the bars
-    for i, v in enumerate(df_sorted["total_downloads"]):
-        ax.text(v + 5, i, f"{v:,}", color="black", va="center", fontsize=9)
-
-    st.pyplot(fig, use_container_width=True)
-else:
-    st.info("No downloads data available.")
