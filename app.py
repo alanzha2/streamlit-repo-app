@@ -57,18 +57,28 @@ def load_all_tables():
 st.title("Agntcy Repo Insights")
 data = load_all_tables()
 
-# --- REPO NAME FILTER ---
-# Collect all unique repo names from all dataframes that include 'repo_name'
+
 repo_name_columns = [df["repo_name"] for df in data.values() if "repo_name" in df.columns]
-all_repo_names = pd.concat(repo_name_columns).dropna().unique()
-all_repo_names.sort()
+all_repo_names = pd.Series(pd.concat(repo_name_columns).dropna().unique()).sort_values().tolist()
 
 with st.sidebar.expander("📂 Filter by Repo", expanded=False):
-    selected_repos = st.multiselect(
-        "Select repositories to include:",
-        options=all_repo_names,
-        default=all_repo_names
-    )
+    # "Select all" checkbox
+    select_all = st.checkbox("Select all repositories", value=True)
+
+    # If "select all" is checked, set default to all_repo_names
+    if select_all:
+        selected_repos = st.multiselect(
+            "Select repositories to include:",
+            options=all_repo_names,
+            default=all_repo_names,
+            key="repo_selector"
+        )
+    else:
+        selected_repos = st.multiselect(
+            "Select repositories to include:",
+            options=all_repo_names,
+            key="repo_selector"
+        )
 
 # Apply filtering to each relevant dataset
 for name, df in data.items():
