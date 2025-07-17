@@ -42,7 +42,7 @@ def read_csv_from_s3(filename):
     response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
     return pd.read_csv(BytesIO(response["Body"].read()))
 
-@st.cache_data(show_spinner=True)
+@st.cache_data(show_spinner=True, ttl= 3600)
 def load_all_tables():
     data = {}
     for name, fname in TABLES.items():
