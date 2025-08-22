@@ -42,12 +42,89 @@ def read_csv_from_s3(filename):
     response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
     return pd.read_csv(BytesIO(response["Body"].read()))
 
+def fill_download_gaps(df):
+    """
+    Fill gaps in download data by forward-filling the last known value
+    for each package (name + repo_name combination), but only between
+    the first and last known snapshot for each package.
+    
+    Parameters:
+    df (pd.DataFrame): DataFrame with columns 'name', 'repo_name', 'total_downloads', 'process_time'
+    
+    Returns:
+    pd.DataFrame: DataFrame with gaps filled
+    """
+    
+    if df.empty or 'total_downloads' not in df.columns:
+        return df
+    
+    # Create a copy to avoid modifying the original
+    df_filled = df.copy()
+    
+    # Ensure process_time is datetime
+    df_filled['process_time'] = pd.to_datetime(df_filled['process_time'])
+    
+    # Sort by repo_name, name, and process_time to ensure proper ordering
+    df_filled = df_filled.sort_values(['repo_name', 'name', 'process_time'])
+    
+    # Create a unique identifier for each package
+    df_filled['package_id'] = df_filled['repo_name'] + '/' + df_filled['name']
+    
+    # Get all unique time points in the dataset
+    all_times = sorted(df_filled['process_time'].unique())
+    
+    # For each package, find its first and last snapshot times
+    package_time_ranges = df_filled.groupby('package_id')['process_time'].agg(['min', 'max']).reset_index()
+    
+    # Get package info
+    package_info = df_filled[['name', 'repo_name', 'package_id']].drop_duplicates()
+    package_time_ranges = package_time_ranges.merge(package_info, on='package_id')
+    
+    # Create grid only for times between first and last snapshot for each package
+    complete_grid = []
+    for _, package in package_time_ranges.iterrows():
+        # Only include times between the package's first and last known snapshot
+        package_times = [t for t in all_times if package['min'] <= t <= package['max']]
+        
+        for time in package_times:
+            complete_grid.append({
+                'name': package['name'],
+                'repo_name': package['repo_name'],
+                'package_id': package['package_id'],
+                'process_time': time
+            })
+    
+    complete_df = pd.DataFrame(complete_grid)
+    
+    # Merge with original data
+    merged = complete_df.merge(
+        df_filled[['name', 'repo_name', 'process_time', 'total_downloads']], 
+        on=['name', 'repo_name', 'process_time'], 
+        how='left'
+    )
+    
+    # Sort by package and time
+    merged = merged.sort_values(['package_id', 'process_time'])
+    
+    # Forward fill the total_downloads for each package
+    merged['total_downloads'] = merged.groupby('package_id')['total_downloads'].fillna(method='ffill')
+    
+    # Remove the helper column and return
+    result = merged.drop('package_id', axis=1)
+    
+    return result
+
 @st.cache_data(show_spinner=True, ttl= 3600)
 def load_all_tables():
     data = {}
     for name, fname in TABLES.items():
         try:
             df = read_csv_from_s3(fname)
+            
+            # Apply gap filling specifically to downloads data
+            if name == "downloads" and not df.empty:
+                df = fill_download_gaps(df)
+                
         except Exception as e:
             st.warning(f"Could not load {fname}: {e}")
             df = pd.DataFrame()
@@ -224,9 +301,3 @@ if not df.empty and "repo_name" in df.columns:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No commits data.")
-
-
-
-
-
-
